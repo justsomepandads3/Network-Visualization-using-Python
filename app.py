@@ -1,5 +1,6 @@
 # app.py
 
+import base64
 import io
 import os
 from datetime import datetime
@@ -26,6 +27,16 @@ def load_metrics():
     if "sysUpTimeCentisecs" not in df.columns:
         df["sysUpTimeCentisecs"] = pd.NA
     return df
+
+
+def fig_to_base64(fig):
+    """Convert a matplotlib figure to a base64 string."""
+    buf = io.BytesIO()
+    plt.tight_layout()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode("ascii")
 
 
 def format_uptime(centisecs):
@@ -62,41 +73,143 @@ def load_alerts():
 @app.route("/")
 def index():
     df = load_metrics()
-    if df.empty:
-        devices_summary = []
-    else:
+    charts = {"uptime": None, "bandwidth": None, "traffic": None}
+    devices_summary = []
+
+    if not df.empty:
         # Get latest timestamp per device
         latest = df.sort_values("timestamp").groupby("device").tail(1)
         latest["uptime"] = latest["sysUpTimeCentisecs"].apply(format_uptime)
-        devices_summary = latest[["device", "ip", "timestamp", "uptime"]].to_dict(orient="records")
+        latest["status"] = latest["operStatus"].apply(lambda x: "Yes" if x == 1 else "No")
+        devices_summary = latest[["device", "ip", "timestamp", "uptime", "status"]].to_dict(orient="records")
+
+        # Uptime visualization (bar)
+        if not latest.empty:
+            uptime_hours = latest.copy()
+            uptime_hours["uptime_hours"] = (
+                pd.to_numeric(uptime_hours["sysUpTimeCentisecs"], errors="coerce").fillna(0) / 100 / 3600
+            )
+            fig, ax = plt.subplots(figsize=(6, 3))
+            ax.bar(uptime_hours["device"], uptime_hours["uptime_hours"], color="#2e86de")
+            ax.set_title("Device Uptime (hours)")
+            ax.set_ylabel("Hours")
+            ax.set_xlabel("Device")
+            ax.set_ylim(bottom=0)
+            ax.grid(axis="y", linestyle="--", alpha=0.4)
+            charts["uptime"] = fig_to_base64(fig)
+
+        # Prepare bandwidth/traffic data
+        df_sorted = df.sort_values(["device", "ifIndex", "timestamp"]).copy()
+        for col in ["inOctets", "outOctets"]:
+            df_sorted[col] = pd.to_numeric(df_sorted[col], errors="coerce")
+        df_sorted["delta_in"] = df_sorted.groupby(["device", "ifIndex"])["inOctets"].diff()
+        df_sorted["delta_out"] = df_sorted.groupby(["device", "ifIndex"])["outOctets"].diff()
+        df_sorted["delta_time"] = (
+            df_sorted.groupby(["device", "ifIndex"])["timestamp"].diff().dt.total_seconds()
+        )
+        df_bps = df_sorted.dropna(subset=["delta_in", "delta_out", "delta_time"]).copy()
+        df_bps = df_bps[df_bps["delta_time"] > 0]
+        df_bps["in_bps"] = (df_bps["delta_in"] * 8) / df_bps["delta_time"]
+        df_bps["out_bps"] = (df_bps["delta_out"] * 8) / df_bps["delta_time"]
+        df_bps = df_bps[(df_bps["in_bps"] >= 0) & (df_bps["out_bps"] >= 0)]
+
+        if not df_bps.empty:
+            # Bandwidth per device (avg bps)
+            by_device = df_bps.groupby("device")[["in_bps", "out_bps"]].mean().sort_values("in_bps", ascending=False)
+            fig, ax = plt.subplots(figsize=(6, 3))
+            x = range(len(by_device))
+            ax.bar(x, by_device["in_bps"], width=0.4, label="Inbound", color="#27ae60")
+            ax.bar([i + 0.4 for i in x], by_device["out_bps"], width=0.4, label="Outbound", color="#e67e22")
+            ax.set_xticks([i + 0.2 for i in x])
+            ax.set_xticklabels(by_device.index, rotation=15)
+            ax.set_ylabel("Average bps")
+            ax.set_title("Average Bandwidth by Device")
+            ax.legend()
+            ax.grid(axis="y", linestyle="--", alpha=0.4)
+            charts["bandwidth"] = fig_to_base64(fig)
+
+            # Traffic flow over time (sum)
+            over_time = df_bps.groupby("timestamp")[["in_bps", "out_bps"]].sum().tail(25)
+            if not over_time.empty:
+                fig, ax = plt.subplots(figsize=(6, 3))
+                ax.plot(over_time.index, over_time["in_bps"], label="Inbound", color="#27ae60")
+                ax.plot(over_time.index, over_time["out_bps"], label="Outbound", color="#e67e22")
+                ax.fill_between(over_time.index, over_time["in_bps"], alpha=0.1, color="#27ae60")
+                ax.fill_between(over_time.index, over_time["out_bps"], alpha=0.1, color="#e67e22")
+                ax.set_title("Network Traffic Flow (recent samples)")
+                ax.set_ylabel("bps")
+                ax.set_xlabel("Time")
+                ax.legend()
+                ax.grid(True, linestyle="--", alpha=0.4)
+                fig.autofmt_xdate()
+                charts["traffic"] = fig_to_base64(fig)
 
     template = """
     <html>
-    <head><title>Network Monitor - Overview</title></head>
+    <head>
+      <title>Network Monitor - Overview</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f6f8fb; color: #1f2a37; }
+        h1 { margin-bottom: 10px; }
+        table { border-collapse: collapse; width: 100%; background: #fff; margin-bottom: 20px; }
+        th, td { border: 1px solid #d0d7e2; padding: 8px 10px; text-align: left; }
+        th { background: #e9eef6; }
+        .status-yes { color: #1e8449; font-weight: bold; }
+        .status-no { color: #c0392b; font-weight: bold; }
+        .charts { display: flex; flex-wrap: wrap; gap: 20px; }
+        .card { background: #fff; border: 1px solid #d0d7e2; border-radius: 8px; padding: 15px; flex: 1 1 300px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card img { width: 100%; height: auto; }
+        .links { margin-top: 20px; }
+        .links a { margin-right: 15px; color: #2e86de; text-decoration: none; }
+      </style>
+    </head>
     <body>
       <h1>Network Monitor - Overview</h1>
       {% if devices %}
         <table border="1" cellpadding="5">
-          <tr><th>Device</th><th>IP</th><th>Last Data</th><th>Uptime</th></tr>
+          <tr><th>Device</th><th>IP</th><th>Last Data</th><th>Uptime</th><th>Status</th></tr>
           {% for d in devices %}
             <tr>
               <td>{{ d.device }}</td>
               <td>{{ d.ip }}</td>
               <td>{{ d.timestamp }}</td>
               <td>{{ d.uptime }}</td>
+              <td class="status-{{ d.status|lower }}">{{ d.status }}</td>
             </tr>
           {% endfor %}
         </table>
+        <div class="charts">
+          {% if charts.uptime %}
+          <div class="card">
+            <h3>Uptime Snapshot</h3>
+            <img src="data:image/png;base64,{{ charts.uptime }}" alt="Uptime chart">
+          </div>
+          {% endif %}
+          {% if charts.bandwidth %}
+          <div class="card">
+            <h3>Bandwidth Averages</h3>
+            <img src="data:image/png;base64,{{ charts.bandwidth }}" alt="Bandwidth chart">
+          </div>
+          {% endif %}
+          {% if charts.traffic %}
+          <div class="card">
+            <h3>Traffic Flow</h3>
+            <img src="data:image/png;base64,{{ charts.traffic }}" alt="Traffic chart">
+          </div>
+          {% endif %}
+        </div>
       {% else %}
         <p>No metrics collected yet. Run collector.py first.</p>
       {% endif %}
 
-      <p><a href="/interfaces">View Interfaces</a></p>
-      <p><a href="/alerts">View Alerts</a></p>
+      <div class="links">
+        <a href="/interfaces">View Interfaces</a>
+        <a href="/alerts">View Alerts</a>
+      </div>
     </body>
     </html>
     """
-    return render_template_string(template, devices=devices_summary)
+    return render_template_string(template, devices=devices_summary, charts=charts)
 
 
 @app.route("/interfaces")
