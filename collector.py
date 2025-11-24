@@ -102,7 +102,9 @@ def collect_for_device(device):
     # Convert to dictionaries indexed by interface index
     # OIDs look like: 1.3.6.1.2.1.2.2.1.2.<ifIndex>
     def extract_index(oid_str, base_oid):
-        return oid_str[len(base_oid) + 1 :]
+        if oid_str.startswith(base_oid):
+            return oid_str[len(base_oid)+1:]
+        raise ValueError(f"OID {oid_str} does not start with {base_oid}")
 
     descr_map = {}
     in_map = {}
