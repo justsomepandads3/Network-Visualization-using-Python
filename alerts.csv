@@ -1,0 +1,34 @@
+timestamp,device,ip,severity,message
+2025-11-24T16:24:50.948801,R2,192.168.20.1,CRITICAL,SNMP error: SNMP WALK error: No SNMP response received before timeout
+2025-11-24T16:24:58.424844,R2,192.168.20.1,CRITICAL,SNMP error: SNMP WALK error: No SNMP response received before timeout
+2025-11-24T16:25:05.960714,R2,192.168.20.1,CRITICAL,SNMP error: SNMP WALK error: No SNMP response received before timeout
+2025-11-24T16:25:13.450019,R2,192.168.20.1,CRITICAL,SNMP error: SNMP WALK error: No SNMP response received before timeout
+2025-11-24T16:25:20.928590,R2,192.168.20.1,CRITICAL,SNMP error: SNMP WALK error: No SNMP response received before timeout
+2025-11-24T16:25:28.426172,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:25:33.312440,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:25:38.189130,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:25:43.020990,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:25:47.893913,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:25:52.772087,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:25:57.643049,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:02.486171,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:07.389839,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:12.265138,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:17.098130,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:21.953852,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:26.789350,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:31.734341,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:36.591704,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:41.460852,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:46.306234,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:51.131738,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:26:55.964400,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:00.797780,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:05.653724,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:10.507628,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:15.331640,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:20.177144,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:25.136263,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:29.951647,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:34.765944,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)
+2025-11-24T16:27:39.589028,R2,192.168.20.1,WARNING,Interface 1 (Embedded-Service-Engine0/0) is DOWN (status=2)

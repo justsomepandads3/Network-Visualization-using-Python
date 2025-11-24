@@ -33,4 +33,10 @@ pip install -r requirements.txt
 3. Run the codes:
 
 Run collector.py in separate terminal and then run app.py and access the web UI using https://localhost:5000
+```bash
+python collector.py
+# in a separate terminal
+python app.py
+```
 
+Enjoy
