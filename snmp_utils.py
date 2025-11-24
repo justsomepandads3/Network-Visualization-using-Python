@@ -1,9 +1,8 @@
 # snmp_utils.py
 
-from pysnmp_sync_adapter import get_cmd_sync, next_cmd_sync
-from pysnmp.hlapi.v3arch.asyncio import SnmpEngine, CommunityData, UdpTransportTarget, ContextData
+from pysnmp_sync_adapter import get_cmd_sync, next_cmd_sync, create_transport
+from pysnmp.hlapi import SnmpEngine, CommunityData, UdpTransportTarget, ContextData
 from pysnmp.smi.rfc1902 import ObjectIdentity, ObjectType
-from pysnmp_sync_adapter import create_transport
 from config import SNMP_COMMUNITY, SNMP_PORT
 
 

@@ -23,7 +23,30 @@ def load_metrics():
     df = pd.read_csv(METRICS_FILE)
     # Convert timestamp to datetime for grouping/plotting
     df["timestamp"] = pd.to_datetime(df["timestamp"])
+    if "sysUpTimeCentisecs" not in df.columns:
+        df["sysUpTimeCentisecs"] = pd.NA
     return df
+
+
+def format_uptime(centisecs):
+    if pd.isna(centisecs):
+        return "unknown"
+    try:
+        total_seconds = int(centisecs) / 100
+    except (ValueError, TypeError):
+        return "unknown"
+
+    days, rem = divmod(total_seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, seconds = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{int(days)}d")
+    if hours or days:
+        parts.append(f"{int(hours)}h")
+    parts.append(f"{int(minutes)}m")
+    parts.append(f"{int(seconds)}s")
+    return " ".join(parts)
 
 
 def load_alerts():
@@ -44,7 +67,8 @@ def index():
     else:
         # Get latest timestamp per device
         latest = df.sort_values("timestamp").groupby("device").tail(1)
-        devices_summary = latest[["device", "ip", "timestamp"]].to_dict(orient="records")
+        latest["uptime"] = latest["sysUpTimeCentisecs"].apply(format_uptime)
+        devices_summary = latest[["device", "ip", "timestamp", "uptime"]].to_dict(orient="records")
 
     template = """
     <html>
@@ -53,12 +77,13 @@ def index():
       <h1>Network Monitor - Overview</h1>
       {% if devices %}
         <table border="1" cellpadding="5">
-          <tr><th>Device</th><th>IP</th><th>Last Data</th></tr>
+          <tr><th>Device</th><th>IP</th><th>Last Data</th><th>Uptime</th></tr>
           {% for d in devices %}
             <tr>
               <td>{{ d.device }}</td>
               <td>{{ d.ip }}</td>
               <td>{{ d.timestamp }}</td>
+              <td>{{ d.uptime }}</td>
             </tr>
           {% endfor %}
         </table>
@@ -90,9 +115,18 @@ def interfaces():
         return "UP" if x == 1 else f"DOWN({x})"
 
     last_state["status"] = last_state["operStatus"].apply(status_to_str)
+    last_state["uptime"] = last_state["sysUpTimeCentisecs"].apply(format_uptime)
 
     table_html = last_state[[
-        "device", "ip", "ifIndex", "ifDescr", "status", "inOctets", "outOctets", "timestamp"
+        "device",
+        "ip",
+        "ifIndex",
+        "ifDescr",
+        "status",
+        "uptime",
+        "inOctets",
+        "outOctets",
+        "timestamp"
     ]].to_html(index=False)
 
     template = """

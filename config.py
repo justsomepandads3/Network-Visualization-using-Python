@@ -10,14 +10,9 @@ POLL_INTERVAL = 10  # every 10 seconds
 
 # List of network devices to monitor
 DEVICES = [
-    {"name": "R1", "ip": "192.168.0.1", "role": "router"},
+    {"name": "Cisco-2901", "ip": "192.168.0.1", "role": "router"},
+    {"name": "Catalyst-3560", "ip": "192.168.0.2", "role": "switch"},
 ]
-# DEVICES = [
-#     {"name": "R1", "ip": "192.168.10.1", "role": "router"},
-#     {"name": "R2", "ip": "192.168.20.1", "role": "router"},
-#     {"name": "SW1", "ip": "192.168.10.2", "role": "switch"},
-#     {"name": "SW2", "ip": "192.168.20.2", "role": "switch"},
-# ]
 
 # Thresholds for alerts (example: 80% of link speed)
 # We'll estimate utilization in Flask using deltas in octets.

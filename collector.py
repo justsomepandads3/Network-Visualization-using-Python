@@ -6,36 +6,61 @@ import os
 from datetime import datetime
 
 from config import DEVICES, POLL_INTERVAL
-from snmp_utils import snmp_walk
+from snmp_utils import snmp_walk, snmp_get
 
 # OIDs for interfaces from IF-MIB
 OID_IFDESCR = "1.3.6.1.2.1.2.2.1.2"      # ifDescr
 OID_IFINOCTETS = "1.3.6.1.2.1.2.2.1.10"  # ifInOctets
 OID_IFOUTOCTETS = "1.3.6.1.2.1.2.2.1.16" # ifOutOctets
 OID_IFOPERSTATUS = "1.3.6.1.2.1.2.2.1.8" # ifOperStatus
+OID_SYSUPTIME = "1.3.6.1.2.1.1.3.0"      # sysUpTime.0
 
 
 METRICS_FILE = "metrics.csv"
 ALERTS_FILE = "alerts.csv"
+METRICS_HEADER = [
+    "timestamp",
+    "device",
+    "ip",
+    "ifIndex",
+    "ifDescr",
+    "inOctets",
+    "outOctets",
+    "operStatus",
+    "sysUpTimeCentisecs",
+]
 
 
 def ensure_csv_headers():
     """
-    Create CSV files with headers if they don't exist.
+    Create CSV files with headers if they don't exist and upgrade legacy files.
     """
     if not os.path.exists(METRICS_FILE):
         with open(METRICS_FILE, mode="w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "device",
-                "ip",
-                "ifIndex",
-                "ifDescr",
-                "inOctets",
-                "outOctets",
-                "operStatus"
-            ])
+            csv.writer(f).writerow(METRICS_HEADER)
+    else:
+        with open(METRICS_FILE, mode="r", newline="") as f:
+            rows = list(csv.reader(f))
+
+        if not rows or rows[0] != METRICS_HEADER:
+            existing_header = rows[0] if rows else []
+            data_rows = rows[1:] if len(rows) > 1 else []
+            header_index = {col: idx for idx, col in enumerate(existing_header)}
+
+            with open(METRICS_FILE, mode="w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(METRICS_HEADER)
+
+                for row in data_rows:
+                    new_row = []
+                    for col in METRICS_HEADER:
+                        if col == "sysUpTimeCentisecs" and col not in header_index:
+                            new_row.append("")
+                        elif col in header_index and header_index[col] < len(row):
+                            new_row.append(row[header_index[col]])
+                        else:
+                            new_row.append("")
+                    writer.writerow(new_row)
 
     if not os.path.exists(ALERTS_FILE):
         with open(ALERTS_FILE, mode="w", newline="") as f:
@@ -50,7 +75,7 @@ def ensure_csv_headers():
 
 
 def log_metric(timestamp, device_name, ip, if_index, if_descr,
-               in_octets, out_octets, oper_status):
+               in_octets, out_octets, oper_status, sys_uptime_cs):
     with open(METRICS_FILE, mode="a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -61,7 +86,8 @@ def log_metric(timestamp, device_name, ip, if_index, if_descr,
             if_descr,
             in_octets,
             out_octets,
-            oper_status
+            oper_status,
+            sys_uptime_cs
         ])
 
 
@@ -95,6 +121,7 @@ def collect_for_device(device):
         in_octets = snmp_walk(ip, OID_IFINOCTETS)
         out_octets = snmp_walk(ip, OID_IFOUTOCTETS)
         oper_statuses = snmp_walk(ip, OID_IFOPERSTATUS)
+        sys_uptime = snmp_get(ip, OID_SYSUPTIME)
     except Exception as e:
         log_alert(timestamp, name, ip, "CRITICAL", f"SNMP error: {e}")
         return
@@ -136,7 +163,17 @@ def collect_for_device(device):
         out_oct = out_map.get(idx, 0)
         oper_status = oper_map.get(idx, 0)  # 1=up, 2=down, etc.
 
-        log_metric(timestamp, name, ip, idx, if_descr, in_oct, out_oct, oper_status)
+        log_metric(
+            timestamp,
+            name,
+            ip,
+            idx,
+            if_descr,
+            in_oct,
+            out_oct,
+            oper_status,
+            int(sys_uptime)
+        )
 
         # Simple alert if interface is down
         if oper_status != 1:
