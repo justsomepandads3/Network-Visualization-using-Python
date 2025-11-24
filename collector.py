@@ -5,19 +5,16 @@ import csv
 import os
 from datetime import datetime
 
-from config import DEVICES, POLL_INTERVAL
+from config import DEVICES, POLL_INTERVAL, METRICS_FILE, ALERTS_FILE
 from snmp_utils import snmp_walk, snmp_get
 
-# OIDs for interfaces from IF-MIB
+# OIDs (IF-MIB + sysUpTime)
 OID_IFDESCR = "1.3.6.1.2.1.2.2.1.2"      # ifDescr
 OID_IFINOCTETS = "1.3.6.1.2.1.2.2.1.10"  # ifInOctets
 OID_IFOUTOCTETS = "1.3.6.1.2.1.2.2.1.16" # ifOutOctets
 OID_IFOPERSTATUS = "1.3.6.1.2.1.2.2.1.8" # ifOperStatus
 OID_SYSUPTIME = "1.3.6.1.2.1.1.3.0"      # sysUpTime.0
 
-
-METRICS_FILE = "metrics.csv"
-ALERTS_FILE = "alerts.csv"
 METRICS_HEADER = [
     "timestamp",
     "device",
@@ -32,106 +29,54 @@ METRICS_HEADER = [
 
 
 def ensure_csv_headers():
-    """
-    Create CSV files with headers if they don't exist and upgrade legacy files.
-    """
     if not os.path.exists(METRICS_FILE):
-        with open(METRICS_FILE, mode="w", newline="") as f:
+        with open(METRICS_FILE, "w", newline="") as f:
             csv.writer(f).writerow(METRICS_HEADER)
-    else:
-        with open(METRICS_FILE, mode="r", newline="") as f:
-            rows = list(csv.reader(f))
-
-        if not rows or rows[0] != METRICS_HEADER:
-            existing_header = rows[0] if rows else []
-            data_rows = rows[1:] if len(rows) > 1 else []
-            header_index = {col: idx for idx, col in enumerate(existing_header)}
-
-            with open(METRICS_FILE, mode="w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(METRICS_HEADER)
-
-                for row in data_rows:
-                    new_row = []
-                    for col in METRICS_HEADER:
-                        if col == "sysUpTimeCentisecs" and col not in header_index:
-                            new_row.append("")
-                        elif col in header_index and header_index[col] < len(row):
-                            new_row.append(row[header_index[col]])
-                        else:
-                            new_row.append("")
-                    writer.writerow(new_row)
 
     if not os.path.exists(ALERTS_FILE):
-        with open(ALERTS_FILE, mode="w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "device",
-                "ip",
-                "severity",
-                "message"
-            ])
+        with open(ALERTS_FILE, "w", newline="") as f:
+            csv.writer(f).writerow(
+                ["timestamp", "device", "ip", "severity", "message"]
+            )
 
 
-def log_metric(timestamp, device_name, ip, if_index, if_descr,
-               in_octets, out_octets, oper_status, sys_uptime_cs):
-    with open(METRICS_FILE, mode="a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            timestamp,
-            device_name,
-            ip,
-            if_index,
-            if_descr,
-            in_octets,
-            out_octets,
-            oper_status,
-            sys_uptime_cs
-        ])
+def log_metric(ts, dev, ip, idx, descr, in_oct, out_oct, status, uptime):
+    with open(METRICS_FILE, "a", newline="") as f:
+        csv.writer(f).writerow(
+            [ts, dev, ip, idx, descr, in_oct, out_oct, status, uptime]
+        )
 
 
-def log_alert(timestamp, device_name, ip, severity, message):
-    print(f"[{timestamp}] ALERT {severity} on {device_name} ({ip}): {message}")
-    with open(ALERTS_FILE, mode="a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            timestamp,
-            device_name,
-            ip,
-            severity,
-            message
-        ])
+def log_alert(ts, dev, ip, severity, msg):
+    print(f"[{ts}] ALERT {severity} on {dev} ({ip}): {msg}")
+    with open(ALERTS_FILE, "a", newline="") as f:
+        csv.writer(f).writerow([ts, dev, ip, severity, msg])
+
+
+def extract_index(oid_str, base_oid):
+    # base_oid like "1.3.6.1.2.1.2.2.1.2"
+    # oid_str like "1.3.6.1.2.1.2.2.1.2.1"
+    if not oid_str.startswith(base_oid + "."):
+        raise ValueError(f"OID {oid_str} does not start with {base_oid}")
+    return oid_str[len(base_oid) + 1:]
 
 
 def collect_for_device(device):
-    """
-    Collect interface metrics for a single device using SNMP.
-    """
     name = device["name"]
     ip = device["ip"]
+    ts = datetime.utcnow().isoformat()
 
     print(f"Collecting from {name} ({ip}) ...")
 
-    timestamp = datetime.utcnow().isoformat()
-
     try:
-        # Walk each OID table: they share the same index (.ifIndex)
         descrs = snmp_walk(ip, OID_IFDESCR)
         in_octets = snmp_walk(ip, OID_IFINOCTETS)
         out_octets = snmp_walk(ip, OID_IFOUTOCTETS)
         oper_statuses = snmp_walk(ip, OID_IFOPERSTATUS)
         sys_uptime = snmp_get(ip, OID_SYSUPTIME)
     except Exception as e:
-        log_alert(timestamp, name, ip, "CRITICAL", f"SNMP error: {e}")
+        log_alert(ts, name, ip, "CRITICAL", f"SNMP error: {e}")
         return
-
-    # Convert to dictionaries indexed by interface index
-    # OIDs look like: 1.3.6.1.2.1.2.2.1.2.<ifIndex>
-    def extract_index(oid_str, base_oid):
-        if oid_str.startswith(base_oid):
-            return oid_str[len(base_oid)+1:]
-        raise ValueError(f"OID {oid_str} does not start with {base_oid}")
 
     descr_map = {}
     in_map = {}
@@ -154,35 +99,23 @@ def collect_for_device(device):
         idx = extract_index(oid_str, OID_IFOPERSTATUS)
         oper_map[idx] = int(val)
 
-    # Merge per interface index
     all_indexes = sorted(descr_map.keys())
 
     for idx in all_indexes:
-        if_descr = descr_map.get(idx, "unknown")
+        descr = descr_map.get(idx, "unknown")
         in_oct = in_map.get(idx, 0)
         out_oct = out_map.get(idx, 0)
-        oper_status = oper_map.get(idx, 0)  # 1=up, 2=down, etc.
+        status = oper_map.get(idx, 0)  # 1=up, 2=down
 
-        log_metric(
-            timestamp,
-            name,
-            ip,
-            idx,
-            if_descr,
-            in_oct,
-            out_oct,
-            oper_status,
-            int(sys_uptime)
-        )
+        log_metric(ts, name, ip, idx, descr, in_oct, out_oct, status, int(sys_uptime))
 
-        # Simple alert if interface is down
-        if oper_status != 1:
+        if status != 1:
             log_alert(
-                timestamp,
+                ts,
                 name,
                 ip,
                 "WARNING",
-                f"Interface {idx} ({if_descr}) is DOWN (status={oper_status})",
+                f"Interface {idx} ({descr}) is DOWN (status={status})",
             )
 
 

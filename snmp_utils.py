@@ -1,52 +1,72 @@
 # snmp_utils.py
 
-from pysnmp_sync_adapter import get_cmd_sync, next_cmd_sync, create_transport
-from pysnmp.entity.engine import SnmpEngine
-from pysnmp.hlapi import CommunityData, UdpTransportTarget, ContextData
-from pysnmp.smi.rfc1902 import ObjectIdentity, ObjectType
+from pysnmp.hlapi import (
+    SnmpEngine,
+    CommunityData,
+    UdpTransportTarget,
+    ContextData,
+    ObjectType,
+    ObjectIdentity,
+    getCmd,
+    nextCmd,
+)
 from config import SNMP_COMMUNITY, SNMP_PORT
 
 
 def snmp_get(ip, oid):
     """
-    Perform SNMP GET and return value as Python type.
+    Simple SNMP GET, returns the value of the OID.
+    Raises RuntimeError on SNMP errors.
     """
-    errorIndication, errorStatus, errorIndex, varBinds = get_cmd_sync(
+    iterator = getCmd(
         SnmpEngine(),
-        CommunityData(SNMP_COMMUNITY, mpModel=1),
-        create_transport(UdpTransportTarget, (ip, SNMP_PORT), timeout=1, retries=2),
+        CommunityData(SNMP_COMMUNITY, mpModel=1),  # SNMPv2c
+        UdpTransportTarget((ip, SNMP_PORT), timeout=1, retries=2),
         ContextData(),
-        ObjectType(ObjectIdentity(oid))
+        ObjectType(ObjectIdentity(oid)),
     )
+
+    errorIndication, errorStatus, errorIndex, varBinds = next(iterator)
 
     if errorIndication:
         raise RuntimeError(f"SNMP GET error: {errorIndication}")
-    elif errorStatus:
-        raise RuntimeError(f"SNMP GET error: {errorStatus.prettyPrint()} at {errorIndex}")
+    if errorStatus:
+        raise RuntimeError(
+            f"SNMP GET error: {errorStatus.prettyPrint()} at {errorIndex}"
+        )
 
     for varBind in varBinds:
+        # varBind[1] is the value
         return varBind[1]
+
     return None
 
 
 def snmp_walk(ip, oid_prefix):
     """
-    Perform SNMP WALK and return list of (oid, value) tuples.
+    Simple SNMP WALK, returns list of (oid_str, value) tuples.
+    Raises RuntimeError on SNMP errors.
     """
     results = []
-    for errorIndication, errorStatus, errorIndex, varBinds in next_cmd_sync(
+
+    for (errorIndication, errorStatus, errorIndex, varBinds) in nextCmd(
         SnmpEngine(),
         CommunityData(SNMP_COMMUNITY, mpModel=1),
-        create_transport(UdpTransportTarget, (ip, SNMP_PORT), timeout=1, retries=2),
+        UdpTransportTarget((ip, SNMP_PORT), timeout=1, retries=2),
         ContextData(),
         ObjectType(ObjectIdentity(oid_prefix)),
-        lexicographicMode=False
+        lexicographicMode=False,
     ):
         if errorIndication:
             raise RuntimeError(f"SNMP WALK error: {errorIndication}")
-        elif errorStatus:
-            raise RuntimeError(f"SNMP WALK error: {errorStatus.prettyPrint()} at {errorIndex}")
+        if errorStatus:
+            raise RuntimeError(
+                f"SNMP WALK error: {errorStatus.prettyPrint()} at {errorIndex}"
+            )
 
         for varBind in varBinds:
-            results.append((str(varBind[0]), varBind[1]))
-    return results   
+            oid_str = str(varBind[0])
+            val = varBind[1]
+            results.append((oid_str, val))
+
+    return results

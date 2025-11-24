@@ -7,10 +7,10 @@ from datetime import datetime
 
 from flask import Flask, render_template_string, request, send_file
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg") # To fix the problem of not running in the main thread
 import matplotlib.pyplot as plt
-
-METRICS_FILE = "metrics.csv"
-ALERTS_FILE = "alerts.csv"
+from config import *
 
 app = Flask(__name__)
 
@@ -23,7 +23,7 @@ def load_metrics():
         ])
     df = pd.read_csv(METRICS_FILE)
     # Convert timestamp to datetime for grouping/plotting
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce").dt.tz_localize(None)
     if "sysUpTimeCentisecs" not in df.columns:
         df["sysUpTimeCentisecs"] = pd.NA
     return df
@@ -75,12 +75,19 @@ def index():
     df = load_metrics()
     charts = {"uptime": None, "bandwidth": None, "traffic": None}
     devices_summary = []
+    stale_threshold = pd.Timedelta(seconds=POLL_INTERVAL * 2)
+    now = pd.Timestamp.utcnow().tz_localize(None)
 
     if not df.empty:
         # Get latest timestamp per device
         latest = df.sort_values("timestamp").groupby("device").tail(1)
         latest["uptime"] = latest["sysUpTimeCentisecs"].apply(format_uptime)
-        latest["status"] = latest["operStatus"].apply(lambda x: "Yes" if x == 1 else "No")
+        latest["status"] = latest.apply(
+            lambda row: "Yes"
+            if (row["operStatus"] == 1) and (now - row["timestamp"] <= stale_threshold)
+            else "No",
+            axis=1,
+        )
         devices_summary = latest[["device", "ip", "timestamp", "uptime", "status"]].to_dict(orient="records")
 
         # Uptime visualization (bar)
