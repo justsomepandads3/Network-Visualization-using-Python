@@ -5,7 +5,7 @@ SNMP_PORT = 161
 SNMP_VERSION = 2  # we use SNMPv2c
 
 # Polling interval in seconds 
-POLL_INTERVAL = 4  # every 10 seconds
+POLL_INTERVAL = 4  # every 4 seconds
 
 # List of network devices to monitor
 DEVICES = [

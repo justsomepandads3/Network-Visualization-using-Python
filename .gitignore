@@ -1,2 +1,6 @@
 venv
 application
+test
+__pycache__
+alerts.csv
+metrics.csv
